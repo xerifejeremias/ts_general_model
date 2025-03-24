@@ -2,6 +2,11 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
+from statsmodels.tsa.statespace.sarimax import SARIMAX
+from linearmodels.panel import PanelOLS
+from linearmodels import RandomEffects
+from statsmodels.api import OLS, add_constant
+
 def read_csv_file(file_path):
     """
     Reads a CSV file and returns a DataFrame.
@@ -33,6 +38,21 @@ def perform_eda(df):
     plt.suptitle("Histograms of Numerical Features")
     plt.show()
 
+def transform_target_log(df, target_column):
+    """
+    Transforms the target variable by applying the natural logarithm and adds it as a new column.
+    
+    Parameters:
+    - df: DataFrame, the data containing the target variable
+    - target_column: str, the name of the target column to transform
+    
+    Returns:
+    - DataFrame with the new log-transformed target column
+    """
+    df = df.copy()
+    df[f'log_{target_column}'] = np.log(df[target_column])
+    return df
+
 def create_lags(df, lag=1):
     """
     Creates lagged features for the target variable at market and product_code level.
@@ -61,8 +81,6 @@ def fit_sarima_model(df, order=(1, 1, 1), seasonal_order=(1, 1, 1, 12)):
     Returns:
     - Dictionary of fitted models
     """
-    from statsmodels.tsa.statespace.sarimax import SARIMAX
-    
     models = {}
     for (market, product_code), group in df.groupby(['market', 'product_code']):
         model = SARIMAX(group['y'], order=order, seasonal_order=seasonal_order)
@@ -82,9 +100,6 @@ def fit_panel_data_model(df):
     Returns:
     - Fitted panel data model
     """
-    from linearmodels.panel import PanelOLS
-    from linearmodels import RandomEffects
-    
     # Set the index for panel data
     df = df.set_index(['market', 'product_code', 'ds'])
     
@@ -112,8 +127,6 @@ def fit_ols_model(df):
     Returns:
     - Dictionary of fitted models
     """
-    from statsmodels.api import OLS, add_constant
-    
     models = {}
     for (market, product_code), group in df.groupby(['market', 'product_code']):
         X = group[['var1', 'var2', 'var3', 'var4', 'var5']]
