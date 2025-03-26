@@ -19,12 +19,13 @@ def read_csv_file(file_path):
     """
     return pd.read_csv(file_path)
 
-def perform_eda(df):
+def perform_eda(df, numerical_features):
     """
     Performs Exploratory Data Analysis on the DataFrame.
     
     Parameters:
-    - df: DataFrame, the data to analyze
+    - df: DataFrame, the data to analyze.
+    - numerical_features: list, the column names to use for generating histograms.
     
     Returns:
     - None, displays plots and prints statistics
@@ -34,120 +35,41 @@ def perform_eda(df):
     print(df.describe())
     
     # Histograms for numerical features
-    df[['var1', 'var2', 'var3', 'var4', 'var5', 'y']].hist(bins=15, figsize=(15, 10))
+    df[numerical_features].hist(bins=15, figsize=(15, 10))
     plt.suptitle("Histograms of Numerical Features")
     plt.show()
 
-def transform_target_log(df, target_column):
+def get_dataframe_shape(df):
     """
-    Transforms the target variable by applying the natural logarithm and adds it as a new column.
-    
-    Parameters:
-    - df: DataFrame, the data containing the target variable
-    - target_column: str, the name of the target column to transform
-    
-    Returns:
-    - DataFrame with the new log-transformed target column
-    """
-    df = df.copy()
-    df[f'log_{target_column}'] = np.log(df[target_column])
-    return df
+    Returns the shape and size of a DataFrame.
 
-def create_lags(df, lag=1):
-    """
-    Creates lagged features for the target variable at market and product_code level.
-    
     Parameters:
-    - df: DataFrame, the data to process
-    - lag: int, the number of periods to lag
-    
-    Returns:
-    - DataFrame with lagged features
-    """
-    df = df.copy()
-    df.sort_values(by=['market', 'product_code', 'ds'], inplace=True)
-    df[f'y_lag_{lag}'] = df.groupby(['market', 'product_code'])['y'].shift(lag)
-    return df
+    - df: pandas DataFrame.
 
-def fit_sarima_model(df, order=(1, 1, 1), seasonal_order=(1, 1, 1, 12)):
-    """
-    Fits a SARIMA model for each market and product_code.
-    
-    Parameters:
-    - df: DataFrame, the data to model
-    - order: tuple, the (p, d, q) order of the model
-    - seasonal_order: tuple, the (P, D, Q, s) seasonal order of the model
-    
     Returns:
-    - Dictionary of fitted models
+    - A tuple containing:
+      - The shape (rows, columns) of the DataFrame.
+      - The total number of elements in the DataFrame.
     """
-    models = {}
-    for (market, product_code), group in df.groupby(['market', 'product_code']):
-        model = SARIMAX(group['y'], order=order, seasonal_order=seasonal_order)
-        results = model.fit(disp=False)
-        models[(market, product_code)] = results
-        print(f"Fitted SARIMA model for market: {market}, product_code: {product_code}")
-    
-    return models
+    return df.shape, df.size
 
-def fit_panel_data_model(df):
+def get_dataframe_summary(df):
     """
-    Fits a panel data model (Fixed Effects) for all market and product_code combinations.
-    
-    Parameters:
-    - df: DataFrame, the data to model
-    
-    Returns:
-    - Fitted panel data model
-    """
-    # Set the index for panel data
-    df = df.set_index(['market', 'product_code', 'ds'])
-    
-    # Define the dependent and independent variables
-    y = df['y']
-    X = df[['var1', 'var2', 'var3', 'var4', 'var5']]
-    X = add_constant(X)
-    
-    # Fit the Fixed Effects model
-    model = PanelOLS(y, X, entity_effects=True)
-    results = model.fit()
-    
-    print("Fitted Panel Data Model (Fixed Effects):")
-    print(results.summary)
-    
-    return results
+    Returns a summary of the DataFrame.
 
-def fit_ols_model(df):
-    """
-    Fits an OLS model for each market and product_code.
-    
+    For numerical columns, descriptive statistics are obtained with describe().
+    For categorical columns (object, category), value_counts() is computed for each column.
+
     Parameters:
-    - df: DataFrame, the data to model
-    
+    - df: pandas DataFrame.
+
     Returns:
-    - Dictionary of fitted models
+    - A tuple containing:
+      - A DataFrame with descriptive statistics for numerical columns.
+      - A dictionary mapping categorical column names to their value counts.
     """
-    models = {}
-    for (market, product_code), group in df.groupby(['market', 'product_code']):
-        X = group[['var1', 'var2', 'var3', 'var4', 'var5']]
-        X = add_constant(X)  # Adds a constant term to the predictor
-        y = group['y']
-        model = OLS(y, X).fit()
-        models[(market, product_code)] = model
-        print(f"Fitted OLS model for market: {market}, product_code: {product_code}")
-    
-    return models
-    
-    # Correlation matrix
-    corr_matrix = df[['var1', 'var2', 'var3', 'var4', 'var5', 'y']].corr()
-    print("Correlation Matrix:")
-    print(corr_matrix)
-    
-    # Scatter plots for each feature against the target variable
-    for var in ['var1', 'var2', 'var3', 'var4', 'var5']:
-        plt.figure(figsize=(6, 4))
-        plt.scatter(df[var], df['y'])
-        plt.title(f'Scatter Plot: {var} vs y')
-        plt.xlabel(var)
-        plt.ylabel('y')
-        plt.show()
+    numerical_summary = df.describe()
+    categorical_summary = {}
+    for col in df.select_dtypes(include=['object', 'category']).columns:
+        categorical_summary[col] = df[col].value_counts()
+    return numerical_summary, categorical_summary
