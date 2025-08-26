@@ -1,0 +1,33 @@
+BEGIN
+    DECLARE model_list STRING;
+    DECLARE ddl STRING;
+
+    -- 1) Build "'model' AS ALIAS" list from distinct TSMODEL values
+    SELECT LISTAGG(
+             '''' || TSMODEL || ''' AS ' ||
+             UPPER(REGEXP_REPLACE(TSMODEL,'[^A-Za-z0-9_]','_'))
+           , ', ')
+    INTO :model_list
+    FROM (SELECT DISTINCT TSMODEL FROM LONG_TABLE ORDER BY 1);
+
+    -- 2) Construct dynamic CREATE VIEW DDL
+    ddl := 'CREATE OR REPLACE VIEW WIDE_FORECAST AS
+            SELECT *
+            FROM (
+              SELECT MARKET_CODE,
+                     DS,
+                     ACTUALS,
+                     FEATURES_MAPPING,
+                     REPORTING,
+                     RUNTIME_TIMESTAMP,
+                     TSMODEL,
+                     VALUE
+              FROM LONG_TABLE
+            )
+            PIVOT(
+              MAX(VALUE) FOR TSMODEL IN (' || :model_list || ')
+            )';
+
+    -- 3) Execute the DDL
+    EXECUTE IMMEDIATE :ddl;
+END;
